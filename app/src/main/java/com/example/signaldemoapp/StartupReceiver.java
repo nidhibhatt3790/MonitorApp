@@ -6,6 +6,8 @@ import static com.example.signaldemoapp.MainActivity.getDeviceIP;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -25,6 +27,8 @@ public class StartupReceiver extends BroadcastReceiver {
             String deviceIMEI = intent.getStringExtra("deviceIMEI");
            // Log.d("TAG:IN RECEIVER:ResetFlag", resetFlag);
             Log.d("TAG:IN RECEIVER:deviceIMEI", deviceIMEI);
+
+
 
 
 
@@ -54,6 +58,17 @@ public class StartupReceiver extends BroadcastReceiver {
 
         }
 
+//        if("com.intelisa.Newversion".equals(intent.getAction()))
+//        {
+//            String APPversion = intent.getStringExtra("VERSION");
+//            Log.d("TAG:INTELISA:VERSION",APPversion);
+//        }
+        if("com.intelisa.appversion".equals(intent.getAction()))
+        {
+            String APPversion = intent.getStringExtra("INTELISAAPPVERSION");
+            Log.d("TAG:INTELISA:VERSION",APPversion);
+        }
+
         if ("cms.intent.action.GetInputSignal".equals(intent.getAction())) {
             Log.d("TAG::ACTION IS", intent.getAction());
 
@@ -69,6 +84,8 @@ public class StartupReceiver extends BroadcastReceiver {
             String filePath = intent.getStringExtra("filePath");
 
             Log.d("TAG:filepath receiver",filePath);
+
+
 
 //            new MainActivity.DownloadFileFromURL().execute(filePath);
 //
