@@ -1,17 +1,26 @@
 package com.example.signaldemoapp;
 
 
+
+import static com.example.signaldemoapp.MainActivity.checkPermission;
 import static com.example.signaldemoapp.MainActivity.getDeviceIP;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.example.signaldemoapp.managers.SharePreferenceManager;
+import com.example.signaldemoapp.utils.Tool;
+
 public class StartupReceiver extends BroadcastReceiver {
+
+    public static String reset = "0";
+    public static String deviceIMEI = "XXXXXX";
 
 
     @Override
@@ -21,15 +30,33 @@ public class StartupReceiver extends BroadcastReceiver {
         Log.d("ANDROID", intent.getAction());
 
 
+
+        Log.d("TAG:BEFORE RESET DATA",reset);
+
         if ("com.intelisa.reset".equals(intent.getAction())) {
-            Log.d("TAG::ACTION IS .", intent.getAction());
+            Log.d("TAG:Reset=>", intent.getAction());
            // String resetFlag = intent.getStringExtra("reset");
-            String deviceIMEI = intent.getStringExtra("deviceIMEI");
+             deviceIMEI = intent.getStringExtra("deviceIMEI");
            // Log.d("TAG:IN RECEIVER:ResetFlag", resetFlag);
             Log.d("TAG:IN RECEIVER:deviceIMEI", deviceIMEI);
 
 
 
+//                reset = "10";
+//
+//            SharedPreferences.Editor editor = SharePreferenceManager.getInstance().getEditor();
+//            editor.putString("reset", reset);
+//            editor.commit();
+
+
+//            Intent i = new Intent(context, MainActivity.class);
+//            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//            i.putExtra("reset", reset);
+//            context.startActivity(i);
+//
+//
+//            Log.d("TAG:AFTER RESET DATA",reset);
+//            Log.d("TAG:AFTER RESET DEVICEIMEI",deviceIMEI);
 
 
 
@@ -40,21 +67,25 @@ public class StartupReceiver extends BroadcastReceiver {
 //                context.sendBroadcast(intent1);
 
 
-                Timer timerip = new Timer(new Runnable() {
-                    @Override
-                    public void run() {
+//                Timer timerip = new Timer(new Runnable() {
+//                    @Override
+//                    public void run() {
+//
+//                        Log.d("TAG:IN 1 MIN..TIME STARTUP"," :)");
+//
+//
+//
+//
+//                        getDeviceIP(deviceIMEI);
+//
+//
+//                    }
+//                }, 60000, true);
 
-                        Log.d("TAG:IN 1 MIN..TIME STARTUP"," :)");
 
+               checkPermission(deviceIMEI);
 
-                        getDeviceIP(deviceIMEI);
-
-
-                    }
-                }, 60000, true);
-
-
-
+               Log.d("TAG:","After file operation");
 
         }
 
@@ -63,6 +94,7 @@ public class StartupReceiver extends BroadcastReceiver {
 //            String APPversion = intent.getStringExtra("VERSION");
 //            Log.d("TAG:INTELISA:VERSION",APPversion);
 //        }
+
         if("com.intelisa.appversion".equals(intent.getAction()))
         {
             String APPversion = intent.getStringExtra("INTELISAAPPVERSION");
@@ -83,7 +115,7 @@ public class StartupReceiver extends BroadcastReceiver {
 
             String filePath = intent.getStringExtra("filePath");
 
-            Log.d("TAG:filepath receiver",filePath);
+            Log.d("TAGReceiver:filepath",filePath);
 
 
 
@@ -96,6 +128,7 @@ public class StartupReceiver extends BroadcastReceiver {
 
         if ("cms.intent.action.REBOOT".equals(intent.getAction())) {
             Log.d("TAG", intent.getAction());
+
         }
         if ("com.tpv.fq.reply.getModelName".equals(intent.getAction())) {
             String modelName = intent.getStringExtra("modelName");

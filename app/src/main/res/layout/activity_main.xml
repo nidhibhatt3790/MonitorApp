@@ -16,7 +16,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Hello World!"
-        android:visibility="visible"
+        android:visibility="gone"
         android:textStyle="bold"
         android:textSize="20dp"
         android:padding="10dp"
@@ -31,7 +31,7 @@
              android:layout_height="100dp"
              android:layout_width="100dp"
              android:src="@drawable/icn_gray"
-             android:visibility="visible"
+             android:visibility="gone"
 
             />
     <Button
@@ -75,7 +75,7 @@
             android:id="@+id/btnApkUpdate"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:visibility="visible"
+            android:visibility="gone"
             android:text="Update Intelisa"
             android:layout_gravity="center"
             app:layout_constraintEnd_toEndOf="parent"
@@ -86,7 +86,7 @@
             android:id="@+id/btnApkUpdate1"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:visibility="visible"
+            android:visibility="gone"
             android:text="Update Monitor App"
             android:layout_gravity="center"
             app:layout_constraintEnd_toEndOf="parent"

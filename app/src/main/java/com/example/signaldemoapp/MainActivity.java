@@ -1,5 +1,13 @@
 package com.example.signaldemoapp;
 
+
+import static android.content.ContentValues.TAG;
+import static com.amazonaws.auth.policy.Principal.WebIdentityProviders.Amazon;
+import static com.example.signaldemoapp.StartupReceiver.deviceIMEI;
+import static com.example.signaldemoapp.StartupReceiver.reset;
+import static com.example.signaldemoapp.utils.Constants.KEY_IS_APP_BACKGROUND;
+import static com.example.signaldemoapp.utils.Constants.KEY_PERMISSION_COMPLETE;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
@@ -17,6 +25,7 @@ import android.app.ActivityManager;
 import android.app.Application;
 import android.app.Dialog;
 import android.app.ProgressDialog;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -34,6 +43,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.StrictMode;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -41,7 +51,24 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.Bucket;
+import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ListObjectsV2Result;
+import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.example.signaldemoapp.managers.SharePreferenceManager;
+import com.example.signaldemoapp.utils.Constants;
 import com.example.signaldemoapp.utils.RetrofitHelper;
+import com.example.signaldemoapp.utils.Tool;
 import com.google.gson.JsonSyntaxException;
 
 import org.json.JSONException;
@@ -70,14 +97,15 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
     AudioManager audioManager;
     TextView tvData;
     ImageView imgUpdate;
+    private boolean isPermissionCheckRequired = true;
     public static boolean flagReboot = true;
     public static boolean flagRestart = false;
     //public  final int progress_bar_type = 0;
     private static ProgressDialog pDialog;
-    private String serverPathMonitor = "https://intelisaapk.s3.ap-south-1.amazonaws.com/MonitorApp/Monitor_1.1.apk";
+    public static String serverPathMonitor = "https://intelisaapk.s3.ap-south-1.amazonaws.com/Monitor_1.1.apk";
     //private static String file_url = "https://intelisaapk.s3.ap-south-1.amazonaws.com/Autoupdater.apk";
     //private static String file_url = "https://intelisaapk.s3.ap-south-1.amazonaws.com/IntelisaDigitalSignage.apk";
-    private static String file_url = " https://intelisaapk.s3.ap-south-1.amazonaws.com/Intelisa.apk";
+    public static String file_url = " https://intelisaapk.s3.ap-south-1.amazonaws.com/Intelisa.apk";
 
     public static String _id;
     public static String resetFlag;
@@ -85,52 +113,82 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
     int mRect[] = {0, 0, 500, 500};
 
     private static final int REQUEST_WRITE_PERMISSION = 786;
+    private static AmazonS3 S3;
+    private Boolean ScreenOverlay = false;
 
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        Log.d("TAG:", "in onrequestpermissionresult");
+
         if (requestCode == REQUEST_WRITE_PERMISSION && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
 
 
-            Log.d("TAG:APK UPDATE APP", "IN permission");
-
-
-            File path1 = Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_DOWNLOADS);
-
-
-            File sPath = Environment.getExternalStorageDirectory();
-            String filePath = sPath + "/" + "IntelisaDigitalSignage.apk";
-
-            Log.d("TAG:APK UPDATE INTELISA ", "IN BUTTON CLICK");
-            // Log.d("TAG::File path -->", filePath);
-
-            Log.d("TAG:", "Before Download..");
-            new DownloadFileFromURL().execute(file_url);
-
-
-            Log.d("TAG:", "Before Intent");
+//            Log.d("TAG:APK UPDATE APP", "IN permission");
+//
+//
+//            File path1 = Environment.getExternalStoragePublicDirectory(
+//                    Environment.DIRECTORY_DOWNLOADS);
+//
+//
+//            File sPath = Environment.getExternalStorageDirectory();
+//            String filePath = sPath + "/" + "IntelisaDigitalSignage.apk";
+//
+//            Log.d("TAG:APK UPDATE INTELISA ", "IN BUTTON CLICK");
+//            // Log.d("TAG::File path -->", filePath);
+//
+//            Log.d("TAG:", "Before Download..");
+//
+//
+//            new DownloadFileFromURL().execute(file_url, serverPathMonitor);
+//
+//
+//            Log.d("TAG:", "Before Intent");
 
 
         }
     }
 
 
-    public void requestFilePermission(Context view, String location) {
-        if (ContextCompat.checkSelfPermission(view,
-                Manifest.permission.READ_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(view,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(view,
-                Manifest.permission.MANAGE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
+    public static void requestFilePermission(Context view) {
+//        if (ContextCompat.checkSelfPermission(view,
+//                Manifest.permission.READ_EXTERNAL_STORAGE)
+//                != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(view,
+//                Manifest.permission.WRITE_EXTERNAL_STORAGE)
+//                != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(view,
+//                Manifest.permission.MANAGE_EXTERNAL_STORAGE)
+//                != PackageManager.PERMISSION_GRANTED) {
+//
+//            ActivityCompat.requestPermissions(AppState.sActivity,
+//                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.MANAGE_EXTERNAL_STORAGE},
+//                    REQUEST_WRITE_PERMISSION);
+//
+//            Log.d("TAG:", "in request file permission");
 
-            ActivityCompat.requestPermissions(AppState.sActivity,
-                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.MANAGE_EXTERNAL_STORAGE},
-                    REQUEST_WRITE_PERMISSION);
+        Log.d("TAG:APK UPDATE APP", "IN permission");
 
-        }
+
+        File path1 = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS);
+
+
+        File sPath = Environment.getExternalStorageDirectory();
+        String filePath = sPath + "/" + "IntelisaDigitalSignage.apk";
+
+        Log.d("TAG:APK UPDATE INTELISA ", "IN BUTTON CLICK");
+        // Log.d("TAG::File path -->", filePath);
+
+        Log.d("TAG:", "Before Download..");
+
+
+        new DownloadFileFromURL().execute(file_url, serverPathMonitor);
+
+
+        Log.d("TAG:", "Before Intent");
+
+
     }
 
 
@@ -150,9 +208,30 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
         StrictMode.setVmPolicy(builder.build());
 
         AppState.sActivity = MainActivity.this;
+        AppState.sContext = getApplicationContext();
+
+        if (android.os.Build.VERSION.SDK_INT >= 29 && !Settings.canDrawOverlays(getApplicationContext())) {
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
+        }
+
+        if (Settings.canDrawOverlays(this)) {
+            // The app has the permission to draw overlays
+            ScreenOverlay = true;
+            SharePreferenceManager.getInstance().getEditor().putBoolean(KEY_PERMISSION_COMPLETE, true).commit();
+
+            Log.d("TAG:", "Screen overlay is Done");
+
+        } else {
+            // The app does not have the permission to draw overlays
+            ScreenOverlay = false;
+            SharedPreferences.Editor pref = getSharedPreferences("PREF", Context.MODE_PRIVATE).edit();
+            SharePreferenceManager.getInstance().getEditor().putBoolean(KEY_PERMISSION_COMPLETE, false).commit();
+            Log.d("TAG:", "Screen overlay is not Done");
+
+        }
 
 
-        bootService = new BootService();
+        //bootService = new BootService();
         tvData = (TextView) findViewById(R.id.tv_data);
         imgUpdate = (ImageView) findViewById(R.id.img_update);
 
@@ -176,6 +255,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
                     MainActivity.this.getPackageName(), 0);
             String versionName = info.versionName;
             tvData.setText("Version: " + versionName);
+            Log.d("TAG:Monitor app version:", versionName);
 
         } catch (PackageManager.NameNotFoundException e) {
             e.printStackTrace();
@@ -189,15 +269,59 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
             Log.d("TAG:", "In if of Intent");
 //            if (intent != null) {
 
-            if (intent.getAction().toString() != null || (intent.getAction().toString().length() > 0)) {
+            if (intent != null && (!intent.equals("null"))) {
 
-                Log.d("TAG:", "In if of Intent string is not null");
+                Log.d("TAG:in inte", "");
 
-                if (intent.getAction().equals("android.intent.action.MAIN")) {
+                if ((intent.getAction() != null)) {
+                    if (intent.getAction().toString() != null || (intent.getAction().toString().length() > 0)) {
 
-                    Log.d("TAG:", "In if of data intent");
+                        Log.d("TAG:", "In if of Intent string is not null");
 
-                    //flagReboot = false;
+                        if (intent.getAction().equals("android.intent.action.MAIN")) {
+
+                            Log.d("TAG:", "In if of data intent");
+
+                            //flagReboot = false;
+
+                            List<ApplicationInfo> applicationInfoList = getPackageManager().getInstalledApplications(PackageManager.GET_META_DATA);
+
+
+                            String[] stringArray = new String[applicationInfoList.size()];
+
+                            for (int i = 0; i < applicationInfoList.size(); i++) {
+
+
+                                ApplicationInfo applicationInfo = applicationInfoList.get(i);
+                                Log.d("TAG:" + i, applicationInfo.packageName);
+
+                                //com.intelisatvapp
+                                //com.example.intelisadigitalsignage
+                                if (applicationInfo.packageName.equals("com.intelisatvapp")) {
+
+                                    Log.d("TAG::", "IN IF ");
+
+                                    Timer timer = new Timer(new Runnable() {
+                                        @Override
+                                        public void run() {
+
+                                            isAppRunning(MainActivity.this, "com.intelisatvapp");
+
+
+                                        }
+                                    }, 60000, true);
+
+
+                                }
+                            }
+
+                        }
+                    }
+                }
+                else
+                {
+                  Log.d("TAG:","Intent Action is null");
+
 
                     List<ApplicationInfo> applicationInfoList = getPackageManager().getInstalledApplications(PackageManager.GET_META_DATA);
 
@@ -228,11 +352,15 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
 
 
                         }
+
+
                     }
+                }
 
                 }
-            }
-        } else {
+
+        }
+        else {
             Log.d("TAG:", "In else of Intent");
 
             List<ApplicationInfo> applicationInfoList = getPackageManager().getInstalledApplications(PackageManager.GET_META_DATA);
@@ -270,6 +398,12 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
         }
 
 
+//        if(RESET.equalsIgnoreCase("0"))
+//        {
+//
+//
+//        }
+
         btnSetVolume.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -287,12 +421,14 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
             public void onClick(View view) {
 
                 Log.d("TAG:REBOOT", "IN BUTTON CLICK");
-                Intent intent = new Intent();
 
-                intent.setAction("cms.intent.action.REBOOT");
-                getApplicationContext().sendBroadcast(intent);
 
-                Log.d("TAG:REBOOT", "AFTER BROADCAST");
+//                Intent intent = new Intent();
+//
+//                intent.setAction("cms.intent.action.REBOOT");
+//                getApplicationContext().sendBroadcast(intent);
+//
+//                Log.d("TAG:REBOOT", "AFTER BROADCAST");
 
             }
         });
@@ -335,8 +471,8 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
 
                 //new DownloadFileFromURL().execute(file_url);
                 // requestPermission();
-                requestFilePermission(getApplicationContext(), file_url);
-
+                // requestFilePermission(AppState.sActivity, file_url);
+                //Exists("intelisaapk", "MonitorApp");
 
             }
         });
@@ -372,7 +508,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
                 //  requestFilePermission(getApplicationContext(),sPath);
                 // installNewApk();
                 // InstallAPKCMD(filePath);
-                requestFilePermission(getApplicationContext(), serverPathMonitor);
+                // requestFilePermission(getApplicationContext(), serverPathMonitor);
 
             }
         });
@@ -436,6 +572,39 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
 
         receiver = new StartupReceiver();
 
+
+        //Log.d("TAG:resetdata from receiver", reset);
+        //Log.d("TAG:deviceimei from receiver", deviceIMEI);
+
+
+        Intent intentreset = getIntent();
+        if (intentreset == null) {
+            Log.d("TAG:intentreset", "null");
+
+
+        } else {
+
+            String resetMsg = intent.getStringExtra("reset");
+            if (resetMsg != null) {
+                Log.d("TAG:reset flag from intent", resetMsg);
+            }
+        }
+
+//        String resetFromPref = SharePreferenceManager.getInstance().getSharePreference().getString("reset", "");
+//
+//       if(resetFromPref != null) {
+//           Log.d("TAG:resetFromPref", resetFromPref);
+//       }
+
+
+//        if ((reset != null) && (reset != "null")) {
+//            if (reset.equalsIgnoreCase("10")) {
+//
+//
+//            }
+//        }
+
+
     }
 
     public static void getDeviceIP(String resnum) {
@@ -466,6 +635,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
 
 
                         Log.d("TAG:", "before updat");
+
                         if (resetFlag != null) {
 
                             if (resetFlag.equalsIgnoreCase("1")) {
@@ -521,12 +691,14 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
 
                     Log.d("TAG:", "After flag update");
 
-                    Intent intent = new Intent();
 
-                    intent.setAction("cms.intent.action.REBOOT");
-                    AppState.sActivity.sendBroadcast(intent);
+                    Log.d("TAG:", "AFTER REQUEST FILE PERMISSION:");
+
+                    requestFilePermission(AppState.sActivity);
+
 
                     Log.d("TAG:REBOOT", "AFTER BROADCAST");
+
                 } catch (Exception e) {
 
                 }
@@ -551,6 +723,90 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
 
 
         Log.d("TAG:ONRESUME", "");
+
+        if (android.os.Build.VERSION.SDK_INT >= 29 && !Settings.canDrawOverlays(getApplicationContext())) {
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
+        }
+
+        if (Settings.canDrawOverlays(this)) {
+            // The app has the permission to draw overlays
+            ScreenOverlay = true;
+            SharePreferenceManager.getInstance().getEditor().putBoolean(KEY_PERMISSION_COMPLETE, true).commit();
+
+        } else {
+            // The app does not have the permission to draw overlays
+            ScreenOverlay = false;
+            SharedPreferences.Editor pref = getSharedPreferences("PREF", Context.MODE_PRIVATE).edit();
+            SharePreferenceManager.getInstance().getEditor().putBoolean(KEY_PERMISSION_COMPLETE, false).commit();
+
+        }
+
+
+       // Log.d("TAG:reset from receiver", reset);
+       // Log.d("TAG:DEVICEIMEI", deviceIMEI);
+
+        Intent intent = getIntent();
+
+
+        if (intent == null) {
+
+            Log.d("TAG:RESET", "intent null");
+
+
+            List<ApplicationInfo> applicationInfoList = getPackageManager().getInstalledApplications(PackageManager.GET_META_DATA);
+
+
+            String[] stringArray = new String[applicationInfoList.size()];
+
+            for (int i = 0; i < applicationInfoList.size(); i++) {
+
+
+                ApplicationInfo applicationInfo = applicationInfoList.get(i);
+                Log.d("TAG:" + i, applicationInfo.packageName);
+
+                //com.intelisatvapp
+                //com.example.intelisadigitalsignage
+                if (applicationInfo.packageName.equals("com.intelisatvapp")) {
+
+                    Log.d("TAG::", "IN IF ");
+
+                    Timer timer = new Timer(new Runnable() {
+                        @Override
+                        public void run() {
+
+                            isAppRunning(MainActivity.this, "com.intelisatvapp");
+
+
+                        }
+                    }, 60000, true);
+
+
+                }
+
+
+            }
+        }
+
+//        else {
+//            String resetMsg = intent.getStringExtra("reset");
+//            if (resetMsg != null) {
+//                Log.d("TAG:reset from intent", resetMsg);
+//            }
+//
+//        }
+
+//        if (intent != null || !(intent.equals("null"))) {
+//
+//            String resetMsg = intent.getStringExtra("reset");
+//            Log.d("TAG:reset from intent", resetMsg);
+//        }
+
+//        String resetFromPref = SharePreferenceManager.getInstance().getSharePreference().getString("reset", "");
+//
+//        if(resetFromPref != null) {
+//            Log.d("TAG:resetFromPref", resetFromPref);
+//        }
+
 //        Intent intent = getIntent();
 //        String data = intent.getStringExtra("data");
 //
@@ -773,7 +1029,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
         }
     }
 
-    public class DownloadFileFromURL extends AsyncTask<String, String, String> {
+    public static class DownloadFileFromURL extends AsyncTask<String, String, String> {
 
 
         /**
@@ -798,7 +1054,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
          */
         @Override
         protected String doInBackground(String... f_url) {
-            int count;
+            int count, count1, lenghtOfFile, lenghtOfFileSecond;
             try {
                 URL url = new URL(f_url[0]);
                 URLConnection connection = url.openConnection();
@@ -806,7 +1062,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
 
                 // this will be useful so that you can show a tipical 0-100%
                 // progress bar
-                int lenghtOfFile = connection.getContentLength();
+                lenghtOfFile = connection.getContentLength();
 
                 // download the file
                 InputStream input = new BufferedInputStream(url.openStream(),
@@ -844,26 +1100,153 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
                 output.close();
                 input.close();
 
-                Log.d("TAG:", "File Downloaded");
-                File sPath = Environment.getExternalStoragePublicDirectory(
-                        Environment.DIRECTORY_DOWNLOADS);
+                if (file.length() == lenghtOfFile) {
 
-                String filePath = sPath + "/" + "Intelisa.apk";
+                    Log.d("TAG:", "Intelisa apk  Downloaded");
+                    File sPath = Environment.getExternalStoragePublicDirectory(
+                            Environment.DIRECTORY_DOWNLOADS);
 
+                    String filePath = sPath + "/" + "Intelisa.apk";
 
-                Intent intent = new Intent();
-                intent.setAction("cms.intent.action.UPDATE_APK");
-                intent.putExtra("filePath", filePath);//you have to put app update apk in device download first
-                intent.putExtra("keep", false);
-                intent.putExtra("packageName", "com.intelisatvapp");
-                intent.putExtra("activityName", "com.intelisatvapp.MainActivity");
-                getApplicationContext().sendBroadcast(intent);
+                    Log.d("TAG:", "Before Intelisa app Update");
 
-                Log.d("TAG:", "After Broadcast");
+                    if (filePath != null) {
+                        try {
+                            Intent intent = new Intent();
+                            intent.setAction("cms.intent.action.UPDATE_APK");
+                            intent.putExtra("filePath", filePath);
+                            intent.putExtra("keep", false);
+                            intent.putExtra("packageName", "com.intelisatvapp");
+                            intent.putExtra("activityName", "com.intelisatvapp.MainActivity");
+                            AppState.sActivity.sendBroadcast(intent);
+                        } catch (Exception e) {
+
+                            Log.d("TAG:Intelisa App update", e.getMessage());
+                        }
+                    }
+
+                    Log.d("TAG:", "After Intelisa app Broadcast");
+
+                } else {
+                    // Handle error: file was not fully downloaded
+                }
+
+                Log.d("TAG:", "Intelisa apk  Downloaded");
+//                File sPath = Environment.getExternalStoragePublicDirectory(
+//                        Environment.DIRECTORY_DOWNLOADS);
+//
+//                String filePath = sPath + "/" + "Intelisa.apk";
+//
+//
+//                Intent intent = new Intent();
+//                intent.setAction("cms.intent.action.UPDATE_APK");
+//                intent.putExtra("filePath", filePath);//you have to put app update apk in device download first
+//                intent.putExtra("keep", false);
+//                intent.putExtra("packageName", "com.intelisatvapp");
+//                intent.putExtra("activityName", "com.intelisatvapp.MainActivity");
+//                AppState.sActivity.sendBroadcast(intent);
+
+                Log.d("TAG:", "After Intelisa app Broadcast");
 
             } catch (Exception e) {
                 Log.e("Error: ", e.getMessage());
             }
+
+            Log.d("TAG:", "Before Monitor apk download..");
+            try {
+                URL url = new URL(f_url[1]);
+                URLConnection connection = url.openConnection();
+                connection.connect();
+
+                // this will be useful so that you can show a tipical 0-100%
+                // progress bar
+                lenghtOfFileSecond = connection.getContentLength();
+
+                // download the file
+                InputStream input = new BufferedInputStream(url.openStream(),
+                        8192);
+
+                // Output stream
+                File path = Environment.getExternalStoragePublicDirectory(
+                        Environment.DIRECTORY_DOWNLOADS);
+
+                Log.d("TAG:NEW FILE PATH IS::", path.toString());
+
+
+                File file = new File(path, "/" + "Monitor_1.1.apk");
+
+                OutputStream output = new FileOutputStream(file);
+
+                byte data[] = new byte[1024];
+
+                long total = 0;
+
+                while ((count1 = input.read(data)) != -1) {
+                    total += count1;
+                    // publishing the progress....
+                    // After this onProgressUpdate will be called
+                    publishProgress("" + (int) ((total * 100) / lenghtOfFileSecond));
+
+                    // writing data to file
+                    output.write(data, 0, count1);
+                }
+
+                // flushing output
+                output.flush();
+
+                // closing streams
+                output.close();
+                input.close();
+
+                if (file.length() == lenghtOfFileSecond) {
+                    Log.d("TAG:", "Monitor apk  Downloaded");
+                    File sPath = Environment.getExternalStoragePublicDirectory(
+                            Environment.DIRECTORY_DOWNLOADS);
+
+                    String filePathMonitor = sPath + "/" + "Monitor_1.1.apk";
+
+                    if (filePathMonitor != null) {
+                        try {
+                            Intent intent = new Intent();
+                            intent.setAction("cms.intent.action.UPDATE_APK");
+                            intent.putExtra("filePath", filePathMonitor);//you have to put app update apk in device download first
+                            intent.putExtra("keep", false);
+                            intent.putExtra("packageName", "com.example.signaldemoapp");
+                            intent.putExtra("activityName", "com.example.signaldemoapp.MainActivity");
+                            AppState.sActivity.sendBroadcast(intent);
+
+                            Log.d("TAG:", "After Monitor app Broadcast");
+                        } catch (Exception e) {
+                            Log.d("TAG:Monitor file update", e.getMessage());
+
+                        }
+                    }
+
+
+                    PackageManager manager = AppState.sActivity.getPackageManager();
+                    PackageInfo info = manager.getPackageInfo(
+                            AppState.sActivity.getPackageName(), 0);
+                    String Currentversion = info.versionName;
+
+
+                    Log.d("Monitor App Version:", Currentversion);
+                    Log.d("TAG:", "Before Reboot");
+
+
+                    Intent intentReboot = new Intent();
+
+                    intentReboot.setAction("cms.intent.action.REBOOT");
+                    AppState.sActivity.sendBroadcast(intentReboot);
+
+                    Log.d("TAG:", "After Reboot broadcast");
+
+                }
+
+
+            } catch (Exception e) {
+                Log.e("Error: ", e.getMessage());
+            }
+
 
             return null;
         }
@@ -884,10 +1267,10 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
             // dismiss the dialog after the file was downloaded
             pDialog.dismiss();
             if (file_url != null) {
-                Toast.makeText(MainActivity.this, "Download error: " + file_url, Toast.LENGTH_LONG).show();
+                Toast.makeText(AppState.sActivity, "Download error: " + file_url, Toast.LENGTH_LONG).show();
                 //   = "NotComplete";
             } else {
-                Toast.makeText(MainActivity.this, "File downloaded", Toast.LENGTH_SHORT).show();
+                Toast.makeText(AppState.sActivity, "File downloaded", Toast.LENGTH_SHORT).show();
                 // = "complete";
 
 
@@ -895,6 +1278,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
         }
 
     }
+
 
 //    public class DownloadFileFromURL extends AsyncTask<String, String, String> {
 //
@@ -1088,4 +1472,115 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
             new DownloadFileFromURL().execute(file_url);
         }
     }
+
+    //    public void Exists(String fileKey, String bucketName)
+//    {
+//
+//
+//        try {
+//
+//            try {
+//                // s3.getObjectMetadata(bucketName, getS3Path(path) + name);
+//                S3.getObjectMetadata(bucketName, fileKey);
+//                Log.d("TAG:", "File exist");
+//
+//            } catch (AmazonServiceException e) {
+//                Log.d("TAG:", "File exist error");
+//            }
+//
+//
+//        } catch (Exception ex) {
+//            Log.d("TAG:Error in checking file on server", ex.getMessage());
+//        }
+//    }
+//    public void Exists(String BucketName, String key) {
+//
+//        try {
+//            String objectDetails = S3.getObjectAsString(BucketName, key);
+////            AmazonS3 s3Client = new AmazonS3Client(new ProfileCredentialsProvider());
+////            S3Object object = s3Client.getObject(new GetObjectRequest(BucketName, key));
+////            InputStream objectData = object.getObjectContent();
+////// Process the objectData stream.
+////            objectData.close();
+////            ObjectListing listing = S3.listObjects("Buckets");
+////            List<S3ObjectSummary> summaries = listing.getObjectSummaries();
+////
+////            while (listing.isTruncated()) {
+////                listing = S3.listNextBatchOfObjects (listing);
+////                summaries.addAll (listing.getObjectSummaries());
+////            }
+//            Log.d("TAG:AWS OBJECT DETAILS:", objectDetails.toString());
+////        }
+////        catch (Exception ex)
+////        {
+////            Log.d("TAG:ERROR",ex.getMessage());
+////
+////        }
+//
+//////        final AmazonS3 s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.DEFAULT_REGION).build();
+//////        ListObjectsV2Result result = s3.listObjectsV2("Buckets");
+//////        List<S3ObjectSummary> objects = result.getObjectSummaries();
+//////        for (S3ObjectSummary os : objects) {
+//////            Log.d("TAG:AWS KEY", ""+os.getKey());
+//////        }
+////            S3 = AmazonS3ClientBuilder.standard()
+////                    .withCredentials(new ProfileCredentialsProvider())
+////                    .withRegion(Regions.DEFAULT_REGION)
+////                    .build();
+////
+////            List<Bucket> buckets = S3.listBuckets();
+////            Log.d("TAG:", "My buckets now are:");
+////
+////            for (Bucket b : buckets) {
+////                Log.d("Bucket name:", b.getName());
+////            }
+//////
+////
+////
+//        } catch (Exception e) {
+//            Log.d("TAG:AWS EXCEPTION::", e.getMessage());
+//
+//        }
+//
+//
+//    }
+
+    public static void checkPermission(String deviceIMEI) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Log.d("TAG", "checkPermission 1: ");
+            if (ContextCompat.checkSelfPermission(AppState.sContext,
+                    Manifest.permission.READ_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(AppState.sContext,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(AppState.sContext,
+                    Manifest.permission.MANAGE_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED) {
+
+                ActivityCompat.requestPermissions(AppState.sActivity,
+                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE,
+                                Manifest.permission.MANAGE_EXTERNAL_STORAGE,
+                                Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                        999);
+
+                Timer timerip = new Timer(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        Log.d("TAG:IN 1 MIN..TIME STARTUP", " :)");
+
+
+                        getDeviceIP(deviceIMEI);
+
+
+                    }
+                }, 60000, true);
+
+            } else {
+                Log.d("TAG", "checkPermission 2: ");
+            }
+        }
+    }
+
+
 }

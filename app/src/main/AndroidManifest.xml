@@ -18,6 +18,15 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
     <uses-permission android:name="android.permission.ACCESS_SUPERUSER"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.ACTION_MANAGE_OVERLAY_PERMISSION" />
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM"/>
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission
+        android:name="android.permission.INTERNAL_SYSTEM_WINDOW"
+        tools:ignore="ProtectedPermissions" />
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
 
     <uses-feature
@@ -39,6 +48,7 @@
         tools:ignore="MissingTvBanner"
         android:requestLegacyExternalStorage="true"
         tools:targetApi="31">
+
         <meta-data
             android:name="com.google.android.actions"
             android:resource="@xml/provider_paths" />
@@ -67,35 +77,47 @@
                 <action android:name="cms.intent.action.REBOOT" />
             </intent-filter>
         </receiver>
+<!--        <receiver-->
+<!--            android:name="com.example.signaldemoapp.BootService"-->
+<!--            android:enabled="true"-->
+<!--            android:exported="true"-->
+<!--            android:label="BootService">-->
+<!--            <intent-filter>-->
+<!--                <action android:name="android.intent.action.BOOT_COMPLETED" />-->
+
+<!--                <data android:scheme="package" />-->
+<!--            </intent-filter>-->
+<!--            <intent-filter>-->
+<!--                <action android:name="android.intent.action.PACKAGE_ADDED" />-->
+
+<!--                <data android:scheme="package" />-->
+<!--            </intent-filter>-->
+<!--            <intent-filter>-->
+<!--                <action android:name="android.intent.action.PACKAGE_INSTALL" />-->
+
+<!--                <data android:scheme="package" />-->
+<!--            </intent-filter>-->
+<!--            <intent-filter>-->
+<!--                <action android:name="android.intent.action.PACKAGE_CHANGED" />-->
+
+<!--                <data android:scheme="package" />-->
+<!--            </intent-filter>-->
+<!--            <intent-filter>-->
+<!--                <action android:name="android.intent.action.PACKAGE_REPLACED" />-->
+
+<!--                <data android:scheme="package" />-->
+<!--            </intent-filter>-->
+<!--        </receiver>-->
+
         <receiver
-            android:name="com.example.signaldemoapp.BootService"
+            android:name="BootReceiver"
             android:enabled="true"
-            android:exported="true"
-            android:label="BootService">
-            <intent-filter>
+            android:exported="true">
+            <intent-filter android:priority="999">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.REBOOT" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
 
-                <data android:scheme="package" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.PACKAGE_ADDED" />
-
-                <data android:scheme="package" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.PACKAGE_INSTALL" />
-
-                <data android:scheme="package" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.PACKAGE_CHANGED" />
-
-                <data android:scheme="package" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.PACKAGE_REPLACED" />
-
-                <data android:scheme="package" />
             </intent-filter>
         </receiver>
 
